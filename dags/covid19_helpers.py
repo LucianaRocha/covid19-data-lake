@@ -35,3 +35,60 @@ def check_wildcard_data_exists(bucket, prefix):
 
     return f'File found in: bucket: {bucket}, prefix: {prefix}'
 
+
+emr_settings = {
+   "Applications": [
+      {
+         "Name": "Spark"
+      }
+   ],
+   "EbsRootVolumeSize": 10,
+   "Instances": { 
+      "Ec2SubnetId": "subnet-07c6842aab83fbc68",
+      "EmrManagedMasterSecurityGroup": "sg-0a8e4b7fe2ca836d4",
+      "EmrManagedSlaveSecurityGroup": "sg-08274d6acf976f276",
+      "InstanceGroups": [
+         { 
+            "EbsConfiguration": { 
+               "EbsBlockDeviceConfigs": [ 
+                  { 
+                     "VolumeSpecification": { 
+                        "SizeInGB": 32,
+                        "VolumeType": "gp2"
+                     },
+                     "VolumesPerInstance": 2
+                  }
+               ],
+            },
+            "InstanceCount": 1,
+            "InstanceRole": "MASTER",
+            "InstanceType": "m5.xlarge",
+            "Name": "Master node"
+         },
+         { 
+            "EbsConfiguration": { 
+               "EbsBlockDeviceConfigs": [ 
+                  { 
+                     "VolumeSpecification": { 
+                        "SizeInGB": 32,
+                        "VolumeType": "gp2"
+                     },
+                     "VolumesPerInstance": 2
+                  }
+               ],
+            },
+            "InstanceCount": 2,
+            "InstanceRole": "CORE",
+            "InstanceType": "m5.xlarge",
+            "Name": "Core node"
+         }
+      ],
+      "KeepJobFlowAliveWhenNoSteps": True,
+   },
+   "JobFlowRole": "EMR_EC2_DefaultRole",
+   "LogUri": "s3n://aws-logs-837754688468-sa-east-1/elasticmapreduce/",
+   "Name": "covid19-emr-cluster",
+   "ReleaseLabel": "emr-5.30.0",
+   "ServiceRole": "EMR_DefaultRole",
+   "VisibleToAllUsers": True
+}

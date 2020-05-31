@@ -3,8 +3,12 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
+from airflow.contrib.operators.emr_create_job_flow_operator import EmrCreateJobFlowOperator
+from airflow.contrib.operators.emr_terminate_job_flow_operator import EmrTerminateJobFlowOperator
 
-from covid19_helpers import check_csv_data_exists, check_wildcard_data_exists
+from covid19_helpers import check_csv_data_exists, \
+                            check_wildcard_data_exists, \
+                            emr_settings
 
 
 # Define default_args that will be passed on to each operator
@@ -67,9 +71,30 @@ verify_usa_data_file_task = PythonOperator(
 )
 
 
+# Create an EMR JobFlow
+spin_up_emr_cluster_task = EmrCreateJobFlowOperator(
+    task_id='spin_up_emr_cluster',
+    job_flow_overrides=emr_settings,
+    dag=dag
+)
+
+
+# Terminate EMR JobFlows
+spin_down_emr_cluster_task = EmrTerminateJobFlowOperator(
+    task_id='spin_down_emr_cluster',
+    job_flow_id="{{task_instance.xcom_pull('spin_up_emr_cluster', " \
+               +"  key='return_value')}}",
+    trigger_rule="all_done",
+    dag=dag
+)
+
+
 # Set the DAG the end execution
 end_operator = DummyOperator(task_id='End_execution',  dag=dag)
 
 
 # Set the correct dependecies
-start_operator >> [verify_world_data_file_task, verify_brazil_data_file_task, verify_usa_data_file_task] >> end_operator
+start_operator >> [verify_world_data_file_task,
+                   verify_brazil_data_file_task, 
+                   verify_usa_data_file_task] \
+>> spin_up_emr_cluster_task >> spin_down_emr_cluster_task >> end_operator
