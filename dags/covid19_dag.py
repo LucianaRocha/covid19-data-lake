@@ -3,12 +3,15 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
+from airflow.contrib.operators.emr_add_steps_operator import EmrAddStepsOperator
 from airflow.contrib.operators.emr_create_job_flow_operator import EmrCreateJobFlowOperator
 from airflow.contrib.operators.emr_terminate_job_flow_operator import EmrTerminateJobFlowOperator
+from airflow.contrib.sensors.emr_step_sensor import EmrStepSensor
 
 from covid19_helpers import check_csv_data_exists, \
                             check_wildcard_data_exists, \
-                            emr_settings
+                            emr_settings, \
+                            covid19_pipeline
 
 
 # Define default_args that will be passed on to each operator
@@ -79,6 +82,28 @@ spin_up_emr_cluster_task = EmrCreateJobFlowOperator(
 )
 
 
+# Add steps to an existing EMR JobFlow
+add_pipeline_to_emr_cluster_task = EmrAddStepsOperator(
+    task_id='add_pipeline_to_emr_cluster',
+    job_flow_id="{{task_instance.xcom_pull('spin_up_emr_cluster', " \
+               +"  key='return_value')}}",
+    steps=covid19_pipeline,
+    dag=dag
+)
+
+
+# Wait step to be completed
+watch_pipeline_step_task = EmrStepSensor(
+    task_id='watch_pipeline_step',
+    job_flow_id="{{task_instance.xcom_pull(" \
+                "      'spin_up_emr_cluster'," \
+                "      key='return_value')}}",
+    step_id="{{task_instance.xcom_pull(" \
+            "  'add_pipeline_to_emr_cluster'," \
+            "  key='return_value')[0]}}",
+    dag=dag)
+
+
 # Terminate EMR JobFlows
 spin_down_emr_cluster_task = EmrTerminateJobFlowOperator(
     task_id='spin_down_emr_cluster',
@@ -97,4 +122,6 @@ end_operator = DummyOperator(task_id='End_execution',  dag=dag)
 start_operator >> [verify_world_data_file_task,
                    verify_brazil_data_file_task, 
                    verify_usa_data_file_task] \
->> spin_up_emr_cluster_task >> spin_down_emr_cluster_task >> end_operator
+>> spin_up_emr_cluster_task \
+>> add_pipeline_to_emr_cluster_task >> watch_pipeline_step_task \
+>> spin_down_emr_cluster_task >> end_operator

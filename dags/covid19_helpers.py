@@ -92,3 +92,22 @@ emr_settings = {
    "ServiceRole": "EMR_DefaultRole",
    "VisibleToAllUsers": True
 }
+
+
+pipeline_path = "https://raw.githubusercontent.com/LucianaRocha/"\
+               +"covid19-data-lake/add-emr-step/covid19_etl.py"
+
+
+covid19_pipeline = [{
+   "Name": "Spark Step One",
+   "ActionOnFailure": "CONTINUE",
+   "HadoopJarStep": {
+      "Jar":"command-runner.jar",
+      "Args": [
+         "spark-submit",
+         "--deploy-mode", "client",
+         "--py-files", pipeline_path,
+         pipeline_path
+         ]
+      }
+   }]
