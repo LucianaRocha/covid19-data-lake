@@ -2,6 +2,9 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.python_operator import PythonOperator
+
+from covid19_helpers import check_data_exists
 
 
 # Define default_args that will be passed on to each operator
@@ -29,8 +32,19 @@ dag = DAG(
 # Set the DAG begin execution
 start_operator = DummyOperator(task_id='Begin_execution', dag=dag)
 
+
+verify_files_task = PythonOperator(
+    task_id='verify_files',
+    python_callable=check_data_exists,
+    op_kwargs={'bucket': 'covid19-lake',
+               'prefix': 'archived/tableau-jhu/csv',
+               'file': 'COVID-19-Cases.csv'},
+    dag=dag
+)
+
+
 # Set the DAG the end execution
 end_operator = DummyOperator(task_id='End_execution',  dag=dag)
 
 # Set the correct dependecies
-start_operator >> end_operator
+start_operator >> verify_files_task >> end_operator
