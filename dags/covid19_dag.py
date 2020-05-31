@@ -4,7 +4,7 @@ from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
 
-from covid19_helpers import check_data_exists
+from covid19_helpers import check_csv_data_exists, check_wildcard_data_exists
 
 
 # Define default_args that will be passed on to each operator
@@ -19,6 +19,7 @@ default_args = {
     'catchup' : False
 }
 
+
 # Define a DAG and use the default_args
 dag = DAG(
     'covid19_pipeline_dag',
@@ -29,13 +30,15 @@ dag = DAG(
     is_paused_upon_creation=False
 )
 
+
 # Set the DAG begin execution
 start_operator = DummyOperator(task_id='Begin_execution', dag=dag)
 
 
-verify_files_task = PythonOperator(
-    task_id='verify_files',
-    python_callable=check_data_exists,
+# Verify weather world data file exists
+verify_world_data_file_task = PythonOperator(
+    task_id='verify_world_data_file',
+    python_callable=check_csv_data_exists,
     op_kwargs={'bucket': 'covid19-lake',
                'prefix': 'archived/tableau-jhu/csv',
                'file': 'COVID-19-Cases.csv'},
@@ -43,8 +46,30 @@ verify_files_task = PythonOperator(
 )
 
 
+# Verify weather Brazil data file exists
+verify_brazil_data_file_task = PythonOperator(
+    task_id='verify_brazil_data_file',
+    python_callable=check_csv_data_exists,
+    op_kwargs={'bucket': 'covid19-input',
+               'prefix': 'raw-data',
+               'file': 'COVID-19-Brazil.csv'},
+    dag=dag
+)
+
+
+# Verify weather US data file exists
+verify_usa_data_file_task = PythonOperator(
+    task_id='verify_usa_data_file',
+    python_callable=check_wildcard_data_exists,
+    op_kwargs={'bucket': 'covid19-lake',
+               'prefix': 'archived/enigma-jhu/json'},
+    dag=dag
+)
+
+
 # Set the DAG the end execution
 end_operator = DummyOperator(task_id='End_execution',  dag=dag)
 
+
 # Set the correct dependecies
-start_operator >> verify_files_task >> end_operator
+start_operator >> [verify_world_data_file_task, verify_brazil_data_file_task, verify_usa_data_file_task] >> end_operator
