@@ -10,6 +10,7 @@ from airflow.contrib.sensors.emr_step_sensor import EmrStepSensor
 
 from covid19_helpers import check_csv_data_exists, \
                             check_wildcard_data_exists, \
+                            transfer_brazil_data_file, \
                             emr_settings, \
                             covid19_pipeline
 
@@ -54,12 +55,9 @@ verify_world_data_file_task = PythonOperator(
 
 
 # Verify weather Brazil data file exists
-verify_brazil_data_file_task = PythonOperator(
-    task_id='verify_brazil_data_file',
-    python_callable=check_csv_data_exists,
-    op_kwargs={'bucket': 'covid19-input',
-               'prefix': 'raw-data',
-               'file': 'COVID-19-Brazil.csv'},
+transfer_brazil_data_file_task = PythonOperator(
+    task_id='transfer_brazil_data_file',
+    python_callable=transfer_brazil_data_file,
     dag=dag
 )
 
@@ -120,7 +118,7 @@ end_operator = DummyOperator(task_id='End_execution',  dag=dag)
 
 # Set the correct dependecies
 start_operator >> [verify_world_data_file_task,
-                   verify_brazil_data_file_task, 
+                   transfer_brazil_data_file_task, 
                    verify_usa_data_file_task] \
 >> spin_up_emr_cluster_task \
 >> add_pipeline_to_emr_cluster_task >> watch_pipeline_step_task \

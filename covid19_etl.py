@@ -25,7 +25,7 @@ def process_covid_dimension(spark, input_data, covid19_lake, output_data):
     
     # get filepath to dimensions
     covid_global_data = covid19_lake + 'archived/tableau-jhu/csv/COVID-19-Cases.csv'
-    covid_brazil_data = input_data + 'COVID-19-Brazil.csv'
+    covid_brazil_data = input_data + 'COVID-19-Brazil.csv.gz'
     brazil_provinces = input_data + 'provinces_brazil.csv'
 
     # define the data frames
@@ -107,16 +107,16 @@ def process_covid_dimension(spark, input_data, covid19_lake, output_data):
         "SELECT DISTINCT \
               'Brazil' as country_region, \
               bp.province_state as province_state, \
-              sum(populacaotcu2019) as population_count \
+              sum(estimated_population_2019) as population_count \
           FROM brazil_data bd \
-              JOIN brazil_provinces bp ON bd.estado = bp.state \
-          WHERE codmun is null \
-              AND data = '2020-05-19' \
+              JOIN brazil_provinces bp ON bd.state = bp.state \
+          WHERE place_type = 'state' \
+              AND date = '2020-05-19' \
           GROUP BY \
               Country_Region, \
               province_state \
           LIMIT 10"
-        )  
+        )
 
     dim_province = dim_province_us.unionByName(dim_province_br)
 
@@ -152,14 +152,14 @@ def process_covid_brazil_fact(spark, input_data, output_data):
     output_data -- writes province and country facts to partitioned parquet on S3
     """
     # get filepath to brazil fact
-    covid_brazil_data = input_data + 'COVID-19-Brazil.csv'
+    covid_brazil_data = input_data + 'COVID-19-Brazil.csv.gz'
     brazil_provinces = input_data + 'provinces_brazil.csv'    
 
     # define the data frames
     brazil_data_df = spark.read.load(covid_brazil_data, \
             format="csv", sep=",", inferSchema="true", header="true")
     brazil_data_df = brazil_data_df.dropDuplicates()
-    brazil_data_df = brazil_data_df.withColumn('previous',F.date_format('data', 'MM/dd/yyyy'))
+    brazil_data_df = brazil_data_df.withColumn('previous',F.date_format('date', 'MM/dd/yyyy'))
     brazil_data_df.createOrReplaceTempView("brazil_data")
     brazil_data_df.createOrReplaceTempView("brazil_p_data")
     brazil_data_df.show(5)
@@ -176,26 +176,21 @@ def process_covid_brazil_fact(spark, input_data, output_data):
         "SELECT DISTINCT \
               'Brazil' as country_name, \
               pr.province_state as province_state, \
-              to_date(bd.data) as date, \
-              bd.casosacumulado - bp.casosacumulado as confirmed_cases, \
-              bd.obitosacumulado - bp.obitosacumulado as death_cases, \
-              bd.casosacumulado as sum_confirmed_cases, \
-              bd.obitosacumulado as sum_death_cases \
+              to_date(bd.date) as date, \
+              bd.confirmed - bp.confirmed as confirmed_cases, \
+              bd.deaths - bp.deaths as death_cases, \
+              bd.confirmed as sum_confirmed_cases, \
+              bd.deaths as sum_death_cases \
           FROM brazil_data bd \
-              JOIN brazil_p_data bp ON (date_add(to_date(bd.data),-1) = to_date(bp.data) \
-                  AND bd.estado = bp.estado \
-                  AND bd.coduf = bp.coduf) \
-              JOIN brazil_provinces pr ON (trim(bd.estado) = trim(pr.state) \
-                  AND trim(bp.estado) = trim(pr.state)) \
-          WHERE   bd.codmun is null \
-              AND bp.codmun is null \
-              AND trim(bd.coduf) is not null \
-              AND trim(bp.coduf) is not null \
-              AND bd.estado is not null \
-              AND bp.estado is not null \
-              AND bd.estado in ('SP', 'RJ') \
-              AND bp.estado in ('SP', 'RJ') \
-              AND to_date(bd.data) in ('2020-05-19','2020-05-18') \
+              JOIN brazil_p_data bp ON (date_add(to_date(bd.date),-1) = to_date(bp.date) \
+                  AND bd.state = bp.state) \
+              JOIN brazil_provinces pr ON (trim(bd.state) = trim(pr.state) \
+                  AND trim(bp.state) = trim(pr.state)) \
+          WHERE   bd.place_type = 'state' \
+              AND bp.place_type = 'state' \
+              AND bd.state in ('SP', 'RJ') \
+              AND bp.state in ('SP', 'RJ') \
+              AND to_date(bd.date) in ('2020-05-19','2020-05-18') \
           LIMIT 10"
         )
 
@@ -206,20 +201,22 @@ def process_covid_brazil_fact(spark, input_data, output_data):
     fact_covid_country = spark.sql(
         "SELECT DISTINCT \
               'Brazil' as country_name, \
-              to_date(bd.data) as date, \
-              bd.casosacumulado - bp.casosacumulado as confirmed_cases, \
-              bd.obitosacumulado - bp.obitosacumulado as death_cases, \
-              bd.casosacumulado as sum_confirmed_cases, \
-              bd.obitosacumulado as sum_death_cases \
+              to_date(bd.date) as date, \
+              sum(bd.confirmed - bp.confirmed) as confirmed_cases, \
+              sum(bd.deaths - bp.deaths) as death_cases, \
+              sum(bd.confirmed) as sum_confirmed_cases, \
+              sum(bd.deaths) as sum_death_cases \
           FROM brazil_data bd \
-              JOIN brazil_p_data bp ON (date_add(to_date(bd.data),-1) = to_date(bp.data) \
-                  AND bd.regiao = bp.regiao \
-                  AND bd.coduf = bp.coduf) \
-          WHERE   bd.regiao = 'Brasil' \
-              AND bp.regiao = 'Brasil' \
-              AND to_date(bd.data) in ('2020-05-19','2020-05-18') \
+              JOIN brazil_p_data bp ON (date_add(to_date(bd.date),-1) = to_date(bp.date) \
+                  AND bd.state = bp.state) \
+          WHERE   bd.place_type = 'state' \
+              AND bp.place_type = 'state' \
+              AND bd.state in ('SP', 'RJ') \
+              AND bp.state in ('SP', 'RJ') \
+              AND to_date(bd.date) in ('2020-05-19','2020-05-18') \
+          GROUP BY country_name, bd.date \
           LIMIT 10"
-        )        
+        )
 
     fact_covid_country.show(10)
  
@@ -384,8 +381,8 @@ def process_covid_country_fact(spark, covid19_lake, output_data):
           WHERE to_date(bd.Date_format) in ('2020-05-19','2020-05-18') \
               AND bd.country_region in ('Argentina', 'Uruguay') \
               AND bp.country_region in ('Argentina', 'Uruguay') \
-              AND bd.country_region not in ('Brazil') \
-              AND bp.country_region not in ('Brazil') \
+              AND bd.country_region not in ('Brazil', 'US') \
+              AND bp.country_region not in ('Brazil', 'US') \
               AND bd.case_type =  'Deaths' \
               AND bp.case_type =  'Deaths' \
           Limit 10"
@@ -431,6 +428,7 @@ def main():
     process_covid_brazil_fact(spark, input_data, output_data)
     process_covid_usa_fact(spark, covid19_lake, output_data)
     process_covid_country_fact(spark, covid19_lake, output_data)
+
 
 if __name__ == "__main__":
     main()
