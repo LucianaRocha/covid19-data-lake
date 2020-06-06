@@ -12,18 +12,19 @@ def create_spark_session():
     return spark
 
 
-def process_covid_dimension(spark, input_data, output_data):
+def process_covid_dimension(spark, input_data, covid19_lake, output_data):
     """
     Write country, province and time dimensions to parquet files on S3.
     
     Keyword arguments:
     spark -- a spark session
     input_data -- the script reads data from S3 or public datalake
+    covid19_lake -- the script reads data from S3 or public datalake
     output_data -- the script writes dimension to partitioned parquet on S3
     """
     
     # get filepath to dimensions
-    covid_global_data = input_data + 'COVID-19-Cases.csv'
+    covid_global_data = covid19_lake + 'archived/tableau-jhu/csv/COVID-19-Cases.csv'
     covid_brazil_data = input_data + 'COVID-19-Brazil.csv'
     brazil_provinces = input_data + 'provinces_brazil.csv'
 
@@ -236,12 +237,12 @@ def process_covid_usa_fact(spark, covid19_lake, output_data):
     
     Keyword arguments:
     spark -- a spark session
-    input_data -- the script reads data from S3 or public datalake
+    covid19_lake -- the script reads data from S3 or public datalake
     output_data -- writes province and country facts to partitioned parquet on S3
     """
     
     # get filepath to usa fact
-    covid_usa_data = covid19_lake + 'enigma_agg_usa.json' 
+    covid_usa_data = covid19_lake + 'enigma-aggregation/json/us_states/*.json' 
 
     # define the data frames
     usa_data_df = spark.read.json(covid_usa_data)
@@ -309,11 +310,11 @@ def process_covid_country_fact(spark, covid19_lake, output_data):
     
     Keyword arguments:
     spark -- a spark session
-    input_data -- the script reads data from S3 or public datalake
+    covid19_lake -- the script reads data from S3 or public datalake
     output_data -- writes province and country facts to partitioned parquet on S3
     """
     # get filepath to country fact table
-    covid_country_data = covid19_lake + 'COVID-19-Cases.csv'
+    covid_country_data = covid19_lake + 'archived/tableau-jhu/csv/COVID-19-Cases.csv'
 
     # define the data frames
     country_data_df = spark.read.load(covid_country_data, \
@@ -424,9 +425,9 @@ def main():
 
     input_data = "s3a://covid19-input/raw-data/"
     output_data = "s3a://covid19-global-datalake/"
-    covid19_lake = "s3a://covid19-input/raw-data/"
+    covid19_lake = "s3a://covid19-lake/"
 
-    process_covid_dimension(spark, input_data, output_data)
+    process_covid_dimension(spark, input_data, covid19_lake, output_data)
     process_covid_brazil_fact(spark, input_data, output_data)
     process_covid_usa_fact(spark, covid19_lake, output_data)
     process_covid_country_fact(spark, covid19_lake, output_data)

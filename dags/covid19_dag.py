@@ -69,7 +69,7 @@ verify_usa_data_file_task = PythonOperator(
     task_id='verify_usa_data_file',
     python_callable=check_wildcard_data_exists,
     op_kwargs={'bucket': 'covid19-lake',
-               'prefix': 'archived/enigma-jhu/json'},
+               'prefix': 'enigma-aggregation/json/us_states'},
     dag=dag
 )
 
@@ -125,3 +125,4 @@ start_operator >> [verify_world_data_file_task,
 >> spin_up_emr_cluster_task \
 >> add_pipeline_to_emr_cluster_task >> watch_pipeline_step_task \
 >> spin_down_emr_cluster_task >> end_operator
+
