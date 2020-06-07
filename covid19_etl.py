@@ -24,8 +24,7 @@ def process_covid_dimension(spark, input_data, covid19_lake, output_data):
     """
 
     # get filepath to dimensions
-    covid_global_data = covid19_lake + \
-        'archived/tableau-jhu/csv/COVID-19-Cases.csv'
+    covid_global_data = covid19_lake + 'tableau-jhu/csv/COVID-19-Cases.csv'
     covid_brazil_data = input_data + 'COVID-19-Brazil.csv.gz'
     brazil_provinces = input_data + 'provinces_brazil.csv'
 
@@ -188,16 +187,17 @@ def process_covid_brazil_fact(spark, input_data, output_data):
     provinces_brazil_df.show(5)
 
     # extract columns to create fact_covid_province_country about Brazil
-    print('inicia sql')
     fact_covid_country_province = spark.sql(
         "SELECT DISTINCT \
             'Brazil' as country_name, \
             pr.province_state as province_state, \
             to_date(bd.date) as date, \
-            bd.confirmed - bp.confirmed as confirmed_cases, \
-            bd.deaths - bp.deaths as death_cases, \
-            bd.confirmed as sum_confirmed_cases, \
-            bd.deaths as sum_death_cases \
+            bd.last_available_confirmed - bp.last_available_confirmed \
+                as confirmed_cases, \
+            bd.last_available_deaths - bp.last_available_deaths \
+                as death_cases, \
+            bd.last_available_confirmed as sum_confirmed_cases, \
+            bd.last_available_deaths as sum_death_cases \
         FROM brazil_data bd \
             JOIN brazil_p_data bp \
                 ON (date_add(to_date(bd.date),-1) = to_date(bp.date) \
@@ -217,10 +217,12 @@ def process_covid_brazil_fact(spark, input_data, output_data):
         "SELECT DISTINCT \
             'Brazil' as country_name, \
             to_date(bd.date) as date, \
-            sum(bd.confirmed - bp.confirmed) as confirmed_cases, \
-            sum(bd.deaths - bp.deaths) as death_cases, \
-            sum(bd.confirmed) as sum_confirmed_cases, \
-            sum(bd.deaths) as sum_death_cases \
+            sum(bd.last_available_confirmed - bp.last_available_confirmed) \
+                as confirmed_cases, \
+            sum(bd.last_available_deaths - bp.last_available_deaths) \
+                as death_cases, \
+            sum(bd.last_available_confirmed) as sum_confirmed_cases, \
+            sum(bd.last_available_deaths) as sum_death_cases \
         FROM brazil_data bd \
             JOIN brazil_p_data bp \
                 ON (date_add(to_date(bd.date),-1) = to_date(bp.date) \
@@ -244,19 +246,18 @@ def process_covid_brazil_fact(spark, input_data, output_data):
         .parquet(output_data + 'fact_covid_country')
 
 
-def process_covid_usa_fact(spark, covid19_lake, output_data):
+def process_covid_usa_fact(spark, input_data, output_data):
     """
     Write USA data detail to parquet files on S3.
 
     Keyword arguments:
     spark -- a spark session
-    covid19_lake -- the script reads data from S3 or public datalake
+    input_data -- the script reads data from S3 or public datalake
     output_data -- writes province and country to partitioned parquet on S3
     """
 
     # get filepath to usa fact
-    covid_usa_data = covid19_lake + \
-        'enigma-aggregation/json/us_states/*.json'
+    covid_usa_data = input_data + 'enigma_agg_usa.json'
 
     # define the data frames
     usa_data_df = spark.read.json(covid_usa_data)
@@ -325,8 +326,7 @@ def process_covid_country_fact(spark, covid19_lake, output_data):
     output_data -- writes province and country to partitioned parquet on S3
     """
     # get filepath to country fact table
-    covid_country_data = covid19_lake + \
-        'archived/tableau-jhu/csv/COVID-19-Cases.csv'
+    covid_country_data = covid19_lake + 'tableau-jhu/csv/COVID-19-Cases.csv'
 
     # define the data frames
     country_data_df = spark.read.load(
@@ -482,7 +482,7 @@ def main():
     count_dim = process_covid_dimension(
         spark, input_data, covid19_lake, output_data)
     process_covid_brazil_fact(spark, input_data, output_data)
-    process_covid_usa_fact(spark, covid19_lake, output_data)
+    process_covid_usa_fact(spark, input_data, output_data)
     count_fact = process_covid_country_fact(spark, covid19_lake, output_data)
 
     data_quality_check(count_dim, count_fact)

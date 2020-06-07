@@ -12,7 +12,7 @@ from airflow.contrib.operators.emr_terminate_job_flow_operator \
 from airflow.contrib.sensors.emr_step_sensor import EmrStepSensor
 
 from covid19_helpers import check_csv_data_exists, \
-                            check_wildcard_data_exists, \
+                            transfer_usa_data_file, \
                             transfer_brazil_data_file, \
                             emr_settings, \
                             covid19_pipeline, \
@@ -67,9 +67,9 @@ transfer_brazil_data_file_task = PythonOperator(
 
 
 # Verify weather US data file exists
-verify_usa_data_file_task = PythonOperator(
-    task_id='verify_usa_data_file',
-    python_callable=check_wildcard_data_exists,
+transfer_usa_data_file_task = PythonOperator(
+    task_id='transfer_usa_data_file',
+    python_callable=transfer_usa_data_file,
     op_kwargs={'bucket': 'covid19-lake',
                'prefix': 'enigma-aggregation/json/us_states'},
     dag=dag
@@ -131,7 +131,7 @@ end_operator = DummyOperator(task_id='End_execution', dag=dag)
 # Set the correct dependecies
 start_operator >> [verify_world_data_file_task,
                    transfer_brazil_data_file_task, 
-                   verify_usa_data_file_task] \
+                   transfer_usa_data_file_task] \
 >> spin_up_emr_cluster_task \
 >> add_pipeline_to_emr_cluster_task >> watch_pipeline_step_task \
 >> spin_down_emr_cluster_task >> stop_airflow_containers_task >> end_operator

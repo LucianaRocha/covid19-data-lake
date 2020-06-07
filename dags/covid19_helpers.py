@@ -23,21 +23,21 @@ def check_csv_data_exists(bucket, prefix, file):
     return f'File found: bucket: {bucket}, prefix: {prefix}, file: {file}'
 
 
-def check_wildcard_data_exists(bucket, prefix):
-    logging.info('checking whether data exists in s3')
-    source_s3 = S3Hook(aws_conn_id='aws_default')
+def transfer_usa_data_file(bucket, prefix):
+    logging.info('Transfering USA data file from the source to s3 bucket')
 
-    if not source_s3.check_for_bucket(bucket):
-        raise Exception('Bucket not found:', bucket)
+    s3_hook = S3Hook(aws_conn_id='aws_default')
 
-    if not source_s3.check_for_prefix(bucket, prefix, "/"):
-        raise Exception('Prefix not found:', prefix)
+    # Get the object for the data source
+    s3_obj = s3_hook.get_wildcard_key(prefix+'/*.json', bucket, delimiter='/')
+    
+    # Copy data file into s3 bucket
+    s3_hook.load_file_obj(s3_obj.get()['Body'],
+                          key='raw-data/enigma_agg_usa.json',
+                          bucket_name='covid19-input',
+                          replace=True)
 
-    if not source_s3.check_for_wildcard_key(
-            prefix+'/*.json', bucket, delimiter='/'):
-        raise Exception(f'No file found in bucket: {bucket} prefix: {prefix}')
-
-    return f'File found in: bucket: {bucket}, prefix: {prefix}'
+    logging.info('Data transfer finished')
 
 
 def transfer_brazil_data_file():
@@ -56,7 +56,7 @@ def transfer_brazil_data_file():
 
     # Get the data file
     http_hook = HttpHook(method='GET', http_conn_id='http_conn_brasilio')
-    response_br_data = http_hook.run('dataset/covid19/caso.csv.gz')
+    response_br_data = http_hook.run('dataset/covid19/caso_full.csv.gz')
 
     # Store data file into s3 bucket
     s3_hook = S3Hook(aws_conn_id='aws_default')
@@ -111,7 +111,7 @@ emr_settings = {
             },
             "InstanceCount": 2,
             "InstanceRole": "CORE",
-            "InstanceType": "m5.xlarge",
+            "InstanceType": "m5.2xlarge",
             "Name": "Core node"
          }
       ],
