@@ -14,7 +14,6 @@ def check_csv_data_exists(bucket, prefix, file):
     if not source_s3.check_for_bucket(bucket):
         raise Exception('Bucket not found:', bucket)
 
-
     if not source_s3.check_for_prefix(bucket, prefix, "/"):
         raise Exception('Prefix not found:', prefix)
 
@@ -34,7 +33,8 @@ def check_wildcard_data_exists(bucket, prefix):
     if not source_s3.check_for_prefix(bucket, prefix, "/"):
         raise Exception('Prefix not found:', prefix)
 
-    if not source_s3.check_for_wildcard_key(prefix+'/*.json', bucket, delimiter='/'):
+    if not source_s3.check_for_wildcard_key(
+            prefix+'/*.json', bucket, delimiter='/'):
         raise Exception(f'No file found in bucket: {bucket} prefix: {prefix}')
 
     return f'File found in: bucket: {bucket}, prefix: {prefix}'
@@ -57,7 +57,7 @@ def transfer_brazil_data_file():
     # Get the data file
     http_hook = HttpHook(method='GET', http_conn_id='http_conn_brasilio')
     response_br_data = http_hook.run('dataset/covid19/caso.csv.gz')
-    
+
     # Store data file into s3 bucket
     s3_hook = S3Hook(aws_conn_id='aws_default')
     s3_hook.load_bytes(response_br_data.content,
@@ -127,7 +127,7 @@ emr_settings = {
 
 
 pipeline_path = "https://raw.githubusercontent.com/LucianaRocha/"\
-               +"covid19-data-lake/data-quality/covid19_etl.py"
+               +"covid19-data-lake/master/covid19_etl.py"
 
 
 covid19_pipeline = [{
@@ -143,3 +143,5 @@ covid19_pipeline = [{
          ]
       }
    }]
+
+   

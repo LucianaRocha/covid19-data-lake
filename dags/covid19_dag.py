@@ -3,9 +3,12 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
-from airflow.contrib.operators.emr_add_steps_operator import EmrAddStepsOperator
-from airflow.contrib.operators.emr_create_job_flow_operator import EmrCreateJobFlowOperator
-from airflow.contrib.operators.emr_terminate_job_flow_operator import EmrTerminateJobFlowOperator
+from airflow.contrib.operators.emr_add_steps_operator \
+    import EmrAddStepsOperator
+from airflow.contrib.operators.emr_create_job_flow_operator \
+    import EmrCreateJobFlowOperator
+from airflow.contrib.operators.emr_terminate_job_flow_operator \
+    import EmrTerminateJobFlowOperator
 from airflow.contrib.sensors.emr_step_sensor import EmrStepSensor
 
 from covid19_helpers import check_csv_data_exists, \
@@ -113,7 +116,7 @@ spin_down_emr_cluster_task = EmrTerminateJobFlowOperator(
 
 
 # Set the DAG the end execution
-end_operator = DummyOperator(task_id='End_execution',  dag=dag)
+end_operator = DummyOperator(task_id='End_execution', dag=dag)
 
 
 # Set the correct dependecies
