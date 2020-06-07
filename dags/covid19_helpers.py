@@ -1,6 +1,6 @@
 import logging
 
-
+import boto3
 from airflow import settings
 from airflow.models.connection import Connection
 from airflow.hooks.http_hook import HttpHook
@@ -144,4 +144,11 @@ covid19_pipeline = [{
       }
    }]
 
-   
+
+def stop_airflow_containers(cluster):
+    ecs = boto3.client('ecs')
+    task_list = ecs.list_tasks(cluster=cluster)
+    for task_arn in task_list['taskArns']:
+        print('stopping task:', task_arn)
+        ecs.stop_task(cluster=cluster, task=task_arn)
+

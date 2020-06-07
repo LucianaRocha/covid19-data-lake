@@ -15,7 +15,8 @@ from covid19_helpers import check_csv_data_exists, \
                             check_wildcard_data_exists, \
                             transfer_brazil_data_file, \
                             emr_settings, \
-                            covid19_pipeline
+                            covid19_pipeline, \
+                            stop_airflow_containers
 
 
 # Define default_args that will be passed on to each operator
@@ -115,6 +116,14 @@ spin_down_emr_cluster_task = EmrTerminateJobFlowOperator(
 )
 
 
+stop_airflow_containers_task = PythonOperator(
+    task_id='stop_airflow_containers',
+    python_callable=stop_airflow_containers,
+    op_kwargs={'cluster': 'covid19-ecs-cluster'},
+    provide_context=False,
+    dag=dag)
+
+
 # Set the DAG the end execution
 end_operator = DummyOperator(task_id='End_execution', dag=dag)
 
@@ -125,5 +134,5 @@ start_operator >> [verify_world_data_file_task,
                    verify_usa_data_file_task] \
 >> spin_up_emr_cluster_task \
 >> add_pipeline_to_emr_cluster_task >> watch_pipeline_step_task \
->> spin_down_emr_cluster_task >> end_operator
+>> spin_down_emr_cluster_task >> stop_airflow_containers_task >> end_operator
 
