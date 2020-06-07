@@ -142,6 +142,14 @@ def process_covid_dimension(spark, input_data, covid19_lake, output_data):
         .parquet(output_data + 'dim_time')
 
 
+    count_dim = {}
+    count_dim['country'] = spark.sql(
+        "SELECT COUNT (DISTINCT country_region) as countries FROM global_data").collect()[0].countries
+    count_dim['date'] = spark.sql(
+        "SELECT COUNT (DISTINCT date) as dates FROM global_data").collect()[0].dates
+    return count_dim
+
+
 def process_covid_brazil_fact(spark, input_data, output_data):
     """
     Write brazil data detail to parquet files on S3.
@@ -415,6 +423,29 @@ def process_covid_country_fact(spark, covid19_lake, output_data):
     fact_covid_country.write.mode('append').partitionBy('country_name', 'date') \
         .parquet(output_data + 'fact_covid_country')            
 
+    count_fact = {}
+    count_fact['country'] = spark.sql(
+        "SELECT COUNT (DISTINCT country_name) as countries FROM fact_covid_country").collect()[0].countries
+    count_fact['date'] = spark.sql(
+        "SELECT COUNT (DISTINCT date) as dates FROM fact_covid_country").collect()[0].dates
+    return count_fact
+
+
+def data_quality_check(count_dim, count_fact):
+    if count_dim['country'] == count_fact['country']:
+        print(f'Data quality check: SUCCESS. Count countries: {count_dim["country"]}')
+    else:
+        print('Data quality check: Failed. ' \
+              f'dimension contains {count_dim["country"]} distinct countries, ' \
+              f'fact contains {count_fact["country"]} distinct countries.')
+
+    if count_dim['date'] == count_fact['date']:
+        print(f'Data quality check: SUCCESS. Count dates: {count_dim["date"]}')
+    else:
+        print('Data quality check: Failed. ' \
+              f'dimension contains {count_dim["date"]} distinct dates, ' \
+              f'fact contains {count_fact["date"]} distinct dates.')
+
 
 def main():
     """Create a spark session"""
@@ -424,10 +455,12 @@ def main():
     output_data = "s3a://covid19-global-datalake/"
     covid19_lake = "s3a://covid19-lake/"
 
-    process_covid_dimension(spark, input_data, covid19_lake, output_data)
+    count_dim = process_covid_dimension(spark, input_data, covid19_lake, output_data)
     process_covid_brazil_fact(spark, input_data, output_data)
     process_covid_usa_fact(spark, covid19_lake, output_data)
-    process_covid_country_fact(spark, covid19_lake, output_data)
+    count_fact = process_covid_country_fact(spark, covid19_lake, output_data)
+
+    data_quality_check(count_dim, count_fact)
 
 
 if __name__ == "__main__":

@@ -127,7 +127,7 @@ emr_settings = {
 
 
 pipeline_path = "https://raw.githubusercontent.com/LucianaRocha/"\
-               +"covid19-data-lake/add-emr-step/covid19_etl.py"
+               +"covid19-data-lake/data-quality/covid19_etl.py"
 
 
 covid19_pipeline = [{
